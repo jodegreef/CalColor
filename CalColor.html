@@ -1,0 +1,352 @@
+<html>
+<head>
+	<title>Calcolor</title>
+	<script src="js/jquery-2.1.4.min.js"></script>
+	<script src="js/react.js"></script>
+	<script src="js/jsxtransformer.js"></script>
+	<style>
+		/* prevent text selections by mouse cursor */
+		* {
+			user-select: none;
+			-khtml-user-select: none;
+			-o-user-select: none;
+			-moz-user-select: -moz-none;
+			-webkit-user-select: none;
+			font-size: 100%;
+		}
+
+		.row-colorpicker {
+			/* keep it at the top, on top and with some shading to make it stand out of the puzzle below */
+			position: fixed;
+			z-index: 1;
+			-moz-box-shadow: 0 0 55px #000;
+			-webkit-box-shadow: 0 0 55px #000;
+			box-shadow: 5px 5px 15px #000;
+			left: 50%;
+			margin-left: -19.9999vw; /* = 5 * 6.66vw / 2 = 5 colors to choose from of each 6.66vw wide, take half of it to center */
+		}
+		
+		.color-selector {
+			font-family: "Arial Black", Gadget, sans-serif;
+			color:#fff;
+			display:inline-block;
+			width: 6.66vw; /* 100/15 = 6.666 */
+			height: 6.66vw;
+			text-align: center;
+			line-height: 6.66vw;
+		}
+
+		.grid {
+			margin-top: 7vw;
+			width: 100vw;
+		}
+
+		/* one full puzzle row */
+		.row {
+			/*display: block;
+			overflow: none;*/
+			
+			border: 0px;
+			height: 6.66vw; /* 100/15 = 6.666 */
+			padding:0;
+		}
+		
+		/* one puzzle cell containing 4 numbers (= numbers = terms) */
+		.cell {
+			float: left;
+			border: 1px solid #000000;
+			
+			width: 6.66vw;
+			height: 6.66vw;
+			position:relative;
+		}
+
+		/* one row of terms within a cell */
+		.termrow {
+			display: block;
+			overflow: none;
+
+			height: 6.66vw;
+			padding:0;
+			margin:0;
+		}
+		
+		/* base for each individual term */
+		.term {
+			font-family: "Arial Black", Gadget, sans-serif;
+			color:#666;
+			/* makes borders on the inside of the box instead of outside,
+			   which would cause them to grow and not fit in the cell anymore */
+			-webkit-box-shadow:inset 0px 0px 0px 1px #999;
+			-moz-box-shadow:inset 0px 0px 0px 1px #999;
+			box-shadow:inset 0px 0px 0px 1px #999;
+
+			display:inline-block;
+			width: 3.3vw;
+			height: 3.3vw;
+			text-align: center;
+			line-height:3.3vw;
+		}
+		.term-one {
+			float: left;
+			position: absolute;
+			top: 0;
+			left: 0;
+		}
+		.term-two {
+			float: right;
+			position: absolute;
+			top: 0;
+			right: 0;
+		}
+		.term-three {
+			float: left;
+			position: absolute;
+			bottom: 0;
+			left: 0;
+		}
+		.term-four {
+			float: right;
+			position: absolute;
+			bottom: 0;
+			right: 0;
+		}
+	</style>
+</head>
+<body>
+	
+	<div id="puzzle"></div>
+	
+	<script>
+		
+		var bitmap = [
+			[ 5, 5, 5, 5,13,13,13,13,13,13,13, 5, 5, 5],
+			[ 5,13, 5,13,13,13,13,13,13,13,13,13, 5, 5],
+			[ 5, 5,13,13,13,13,13,13,13,13,13,13,13, 5],
+			[ 5,13,13,10,10,13,13,13,13,10,10,13,13, 5],
+			[13,13,10,16,16,10,13,13,16,16,10,10,13,10],
+			[10,13,10,15,16,16,10,10,15,16,16,10,13,10],
+			[10,13,10,15,16,16,10,10,15,16,16,10,13,10],
+			[10,10,13,10,10,15,15,15,10,10,10,13,10,10],
+			[10,13,13,15,10,15,15,16,15,10,15,13,13,10],
+			[13,13,15,10,10,10,15,15,15,10,10,15,13,13],
+			[13,10,15,10,10,10,10,10,10,10,10,15,10,13],
+			[15,10,10,15,15,15,15,15,15,15,15,15,10,15],
+			[15,10,10,10,15,16,16,16,16,15,15,10,10,15],
+			[13,15,10,10,15,11,11,11,11,11,15,10,15,13],
+			[13,13,15,10,10,15,11,11,11,15,10,10,15,13],
+			[13,13,15,10,10,10,15,15,15,10,10,15,13,13],
+			[13,13,13,15,10,10,10,10,10,10,15,13,13,13],
+			[13,13,13,13,15,15,15,15,15,15,13,13,13,13],
+		];
+		
+		
+		var createPuzzleFromBitmap = function(bitmap) {
+			var puzzle = [];
+
+			var getRandom = function(min, max) {
+				return Math.floor((Math.random() * max) + min);
+			}
+
+			for (var y = 0; y < bitmap.length; y++) {
+				puzzle.push([]);
+				for (var x = 0; x < bitmap[y].length;x++) {
+					
+					var term1 = 0;
+					var term2 = 0;
+					var term3 = 0;
+					var term4 = 0;
+					
+					var sum = bitmap[y][x];
+					if (sum > 0) {
+						var half = Math.floor(sum/2);
+						term1 = getRandom(1,half);
+						term2 = half-term1;
+						term3 = getRandom(1,sum-half);
+						term4 = sum-term1-term2-term3;
+					} 
+					
+					puzzle[y].push({sum: sum, term1: term1, term2:term2, term3:term3, term4:term4});
+				}
+			}
+			
+			return puzzle;
+		}
+		
+		var puzzle = createPuzzleFromBitmap(bitmap);
+
+	</script>
+	
+	
+	<script type="text/jsx">
+		React.initializeTouchEvents(true);
+	
+		var Puzzle = React.createClass({
+		
+			getInitialState: function () {
+				var dataFromLocalStorage = JSON.parse(localStorage.getItem('calcolor'));
+
+				if (dataFromLocalStorage) {
+					return dataFromLocalStorage;
+				} else {
+					var emptyGrid = [];
+					for (var y = 0; y < this.props.grid.length; y++) {
+						emptyGrid.push([]);
+						for (var x = 0; x < this.props.grid[y].length;x++) {
+							emptyGrid[y].push('#fff');
+						}
+					}
+					
+					return {
+						coloredGrid: emptyGrid,
+						selectedColor: '#fff' 
+						};
+				}
+			},
+
+			handleClick: function(x, y) {
+				var coloredGrid = this.state.coloredGrid;
+				coloredGrid[x][y]=this.state.currentColor;
+				this.setState(
+					{
+						coloredGrid: coloredGrid, 
+						currentColor: this.state.currentColor
+					},
+					this.saveState
+				);
+	  		},			
+			
+			handleColorPick: function(color) {
+				this.setState(
+					{	
+						coloredGrid: this.state.coloredGrid, 
+						currentColor: color 
+					},
+					this.saveState
+				);
+			},
+			
+			saveState: function() {
+				localStorage.setItem('calcolor', JSON.stringify(this.state));
+			},
+		
+			render: function() {
+				var handleClick = this.handleClick;
+				var coloredGrid = this.state.coloredGrid;
+				
+				return (
+					<div>
+						<ColorPicker onColorPick={this.handleColorPick} currentColor={this.state.currentColor} />
+						<br />
+						<div className="grid">
+							{this.props.grid.map(function(result, index) {
+								return <PuzzleRow key={index} data={result} y={index} onClick={handleClick} coloredGrid={coloredGrid} />;
+							})}
+						</div>
+					</div>
+				);
+			}
+		});
+		
+		
+		
+		var ColorPicker = React.createClass({
+			render: function() {
+				return (
+					<div className="row row-colorpicker">
+						<AvailableColor color='cornflowerblue'  textColor='white' value='5'  onColorPick={this.props.onColorPick} currentColor={this.props.currentColor} />
+						<AvailableColor color='pink' 		textColor='white' value='10' onColorPick={this.props.onColorPick} currentColor={this.props.currentColor} />
+						<AvailableColor color='darkred' 		textColor='white' value='11' onColorPick={this.props.onColorPick} currentColor={this.props.currentColor} />
+						<AvailableColor color='saddlebrown' 	textColor='white' value='13' onColorPick={this.props.onColorPick} currentColor={this.props.currentColor} />
+						<AvailableColor color='#222' 			textColor='white' value='15' onColorPick={this.props.onColorPick} currentColor={this.props.currentColor} />
+						<AvailableColor color='white' 			textColor='black' value='16' onColorPick={this.props.onColorPick} currentColor={this.props.currentColor} />
+					</div>
+				);
+			}
+		});
+		
+		
+		
+		var AvailableColor = React.createClass({
+			selectColor: function() {
+				this.props.onColorPick(this.props.color);
+			},
+		
+			render: function() {
+				var highlight = this.props.currentColor == this.props.color ? 'inset 0px 0px 0px 5px #f00' : '';
+			
+				return (
+					<div 
+						className="cell"
+						onClick={this.selectColor}
+						onTouchStart={this.selectColor}
+						style={{
+							backgroundColor: this.props.color,
+							boxShadow: highlight,
+							WebkitBoxShadow: highlight,
+							MozBoxShadow: highlight
+							}}
+					>
+							<span 
+								style={{color: this.props.textColor}} 
+								className="color-selector">
+									{this.props.value}
+							</span>
+					</div>
+				);
+			}
+		});
+
+
+
+		var PuzzleRow = React.createClass({
+			render: function() {
+				var y = this.props.y;
+				var onClick = this.props.onClick;
+				var coloredGrid = this.props.coloredGrid;
+				
+				return (
+					<div className='row'>
+						{this.props.data.map(function(result, index) {
+							return <PuzzleCell key={index} data={result} y={y} x={index} onTouchStart={onClick} onClick={onClick} coloredGrid={coloredGrid}/>;
+						})}
+					</div>
+				);
+			}
+		});
+		
+		
+		
+		var PuzzleCell = React.createClass({
+		
+			handleClick: function() {
+				this.props.onClick(this.props.x, this.props.y);
+			},
+			
+			render: function() {
+				return (
+					<div className="cell" style={{backgroundColor: this.props.coloredGrid[this.props.x][this.props.y]}} onClick={this.handleClick}>
+					<div className="termrow" >
+						<span className="term term-one">{this.props.data.term1}</span>
+						<span className="term term-two">{this.props.data.term2}</span>
+					</div>
+					<div className="termrow">
+						<span className="term term-three">{this.props.data.term3}</span>
+						<span className="term term-four">{this.props.data.term4}</span>
+					</div>
+					</div>
+				);
+			}
+		});
+
+
+
+		React.render(
+			<Puzzle grid={puzzle} />,
+			document.getElementById('puzzle')
+		);
+
+    </script>
+	
+</body>
+</html>
